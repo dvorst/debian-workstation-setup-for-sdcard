@@ -1,0 +1,57 @@
+---
+- name: Configure zram swap (replaces SD-backed swap)
+  copy:
+    dest: /etc/default/zramswap
+    content: |
+      ALGO=lz4
+      PERCENT=50
+  notify: Restart zramswap
+
+- name: Set sysctl for low-write / RAM-friendly behaviour
+  sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_file: /etc/sysctl.d/99-lowwrite.conf
+    reload: yes
+  when: not (molecule_container | default(false))
+  loop:
+    - { key: vm.swappiness,             value: "10" }
+    - { key: vm.dirty_ratio,            value: "20" }
+    - { key: vm.dirty_background_ratio, value: "5"  }
+    - { key: vm.vfs_cache_pressure,     value: "50" }
+
+- name: Move /tmp, /var/log and /var/tmp to tmpfs
+  blockinfile:
+    path: /etc/fstab
+    block: |
+      tmpfs  /tmp      tmpfs  defaults,noatime,nosuid,nodev,size=512m  0 0
+      tmpfs  /var/log  tmpfs  defaults,noatime,nosuid,nodev,size=128m  0 0
+      tmpfs  /var/tmp  tmpfs  defaults,noatime,nosuid,nodev,size=128m  0 0
+    marker: "# {mark} ANSIBLE MANAGED — tmpfs block"
+
+- name: Create persistent /var/log subdirs via tmpfiles.d
+  copy:
+    dest: /etc/tmpfiles.d/var-log-dirs.conf
+    content: |
+      d /var/log/apt     0755 root root -
+      d /var/log/journal 2755 root systemd-journal -
+
+- name: Configure journald volatile storage
+  ini_file:
+    path: /etc/systemd/journald.conf
+    section: Journal
+    option: "{{ item.key }}"
+    value: "{{ item.value }}"
+  loop:
+    - { key: Storage,      value: volatile }
+    - { key: Compress,     value: "yes"    }
+    - { key: SystemMaxUse, value: 64M      }
+
+- name: Disable apt cache persistence
+  copy:
+    dest: /etc/apt/apt.conf.d/99-no-cache
+    content: |
+      Dir::Cache::pkgcache "";
+      Dir::Cache::srcpkgcache "";
+      DPkg::Post-Invoke { "rm -f /var/cache/apt/archives/*.deb /var/cache/apt/archives/partial/*.deb /var/cache/apt/*.bin || true"; };

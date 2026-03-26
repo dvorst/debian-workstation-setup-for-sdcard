@@ -1,0 +1,16 @@
+---
+- name: Ensure user dvorst exists
+  user:
+    name: "{{ username }}"
+    shell: /bin/bash
+    groups: sudo,audio,video,plugdev,netdev
+    append: yes
+    create_home: yes
+
+- name: Create ~/projects directory
+  file:
+    path: "{{ user_home }}/projects"
+    state: directory
+    owner: "{{ username }}"
+    group: "{{ username }}"
+    mode: '0755'

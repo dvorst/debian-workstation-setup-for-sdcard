@@ -1,0 +1,38 @@
+{
+  "name": "debian-workstation-setup",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  // Bind the Podman socket into the container as a Docker-compatible socket.
+  // molecule-docker uses the Docker Python SDK, which works transparently with
+  // Podman's Docker-compatible API via DOCKER_HOST.
+  //
+  // Adjust the source path if your Podman socket is elsewhere:
+  //   Rootless Podman (Linux / Podman Machine):  /run/user/<UID>/podman/podman.sock
+  //   Rootful Podman (Linux):                    /run/podman/podman.sock
+  //
+  // On Windows with Podman Desktop the socket is forwarded into the Podman
+  // Machine VM; UID 1000 is the default VM user.
+  "mounts": [
+    {
+      "source": "/run/user/1000/podman/podman.sock",
+      "target": "/var/run/docker.sock",
+      "type": "bind"
+    }
+  ],
+  "remoteEnv": {
+    "DOCKER_HOST": "unix:///var/run/docker.sock"
+  },
+  // Disable SELinux label relabelling — Podman uses it by default and it
+  // prevents the socket bind-mount from being accessible inside the container.
+  "runArgs": ["--security-opt=label=disable"],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "redhat.ansible",
+        "redhat.vscode-yaml"
+      ]
+    }
+  }
+}

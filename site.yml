@@ -1,0 +1,51 @@
+---
+# =============================================================================
+# site.yml — Post-install provisioning for dvorst's dev workstation
+# Run as: ansible-playbook -i inventory.ini site.yml -K --ask-vault-pass
+# =============================================================================
+
+- name: Provision dev workstation
+  hosts: all
+  become: true
+
+  vars_files:
+    - group_vars/all/vault.yml
+
+  vars:
+    username: dvorst
+    user_home: "/home/{{ username }}"
+    debian_release: forky
+
+  tasks:
+    - name: SD card optimizations
+      import_tasks: tasks/sd_optimizations.yml
+
+    - name: APT sources and packages
+      import_tasks: tasks/apt.yml
+
+    - name: User setup
+      import_tasks: tasks/user.yml
+
+    - name: Shell environment
+      import_tasks: tasks/shell.yml
+
+    - name: Developer tools
+      import_tasks: tasks/tools.yml
+
+    - name: Podman rootless
+      import_tasks: tasks/podman.yml
+
+    - name: Desktop environment
+      import_tasks: tasks/desktop.yml
+
+    - name: Git configuration
+      import_tasks: tasks/git.yml
+
+  # ---------------------------------------------------------------------------
+  handlers:
+  # ---------------------------------------------------------------------------
+  - name: Restart zramswap
+    systemd:
+      name: zramswap
+      state: restarted
+    when: not (molecule_container | default(false))

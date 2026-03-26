@@ -1,0 +1,40 @@
+---
+- name: Clone ble.sh
+  become_user: "{{ username }}"
+  git:
+    repo: https://github.com/akinomyoga/ble.sh.git
+    dest: /tmp/ble.sh-src
+    depth: 1
+
+- name: Install ble.sh
+  become_user: "{{ username }}"
+  shell: |
+    make -C /tmp/ble.sh-src install PREFIX={{ user_home }}/.local
+  args:
+    creates: "{{ user_home }}/.local/share/blesh/ble.sh"
+
+- name: Install Starship
+  shell: |
+    curl -sS https://starship.rs/install.sh | sh -s -- --yes
+  args:
+    creates: /usr/local/bin/starship
+
+- name: Deploy .bashrc with ble.sh + starship
+  become_user: "{{ username }}"
+  copy:
+    dest: "{{ user_home }}/.bashrc"
+    content: |
+      # ble.sh — early attach
+      [[ $- == *i* ]] && source "{{ user_home }}/.local/share/blesh/ble.sh" --noattach
+
+      # Path
+      export PATH="$PATH:{{ user_home }}/.local/bin"
+
+      # Podman socket for devcontainers
+      export DOCKER_HOST=unix:///run/user/$(id -u)/podman/podman.sock
+
+      # Starship prompt
+      eval "$(starship init bash)"
+
+      # ble.sh — late attach
+      [[ ${BLE_VERSION-} ]] && ble-attach

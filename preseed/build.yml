@@ -1,0 +1,27 @@
+---
+# =============================================================================
+# preseed/build.yml — Renders preseed.cfg.j2 → preseed.cfg
+# Run as: ansible-playbook preseed/build.yml --ask-vault-pass
+# preseed.cfg is .gitignored — never commit it
+# =============================================================================
+
+- name: Render preseed from template
+  hosts: localhost
+  connection: local
+
+  vars_files:
+    - ../group_vars/all/vault.yml
+
+  vars:
+    username: dvorst
+
+  tasks:
+    - name: Render preseed.cfg from template
+      template:
+        src: preseed.cfg.j2
+        dest: ../preseed.cfg
+        mode: '0600'
+
+    - name: Remind user
+      debug:
+        msg: "preseed.cfg rendered. Use build-iso.sh to embed it in the installer ISO."

@@ -1,0 +1,168 @@
+# =============================================================================
+# preseed.cfg.j2 — Debian Testing (forky) / LXQt / F2FS on SD card
+# Target: low-write, fast-boot dev workstation for dvorst
+#
+# This is a Jinja2 template — render before use:
+#   ansible-playbook preseed/build.yml --ask-vault-pass
+# Do NOT commit the rendered preseed.cfg (it's in .gitignore)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Localization
+# -----------------------------------------------------------------------------
+d-i debian-installer/locale string en_US.UTF-8
+d-i keyboard-configuration/xkb-keymap select us
+
+# -----------------------------------------------------------------------------
+# Network (DHCP; adjust if needed)
+# -----------------------------------------------------------------------------
+d-i netcfg/choose_interface select auto
+d-i netcfg/get_hostname string devbox
+d-i netcfg/get_domain string local
+d-i netcfg/wireless_wep_key_type select open
+
+# -----------------------------------------------------------------------------
+# Mirror — Debian testing (forky)
+# -----------------------------------------------------------------------------
+d-i mirror/country string manual
+d-i mirror/http/hostname string deb.debian.org
+d-i mirror/http/directory string /debian
+d-i mirror/http/proxy string
+d-i mirror/suite string testing
+d-i mirror/codename string forky
+
+# -----------------------------------------------------------------------------
+# Clock / time zone
+# -----------------------------------------------------------------------------
+d-i clock-setup/utc boolean true
+d-i time/zone string Europe/Amsterdam
+d-i clock-setup/ntp boolean true
+
+# -----------------------------------------------------------------------------
+# Partitioning — manual recipe for F2FS
+# The installer cannot format F2FS natively; we use a late_command to reformat.
+# Layout:
+#   /dev/mmcblk0p1  256 MB  vfat    /boot/efi   (EFI)
+#   /dev/mmcblk0p2  1024 MB ext4    /boot       (keep ext4 — GRUB friendly)
+#   /dev/mmcblk0p3  4096 MB swap    (zram will replace at runtime; keep small)
+#   /dev/mmcblk0p4  rest    ext4 →  /           (reformatted to F2FS post-install)
+#
+# NOTE: Adjust /dev/mmcblk0 to match your SD slot device if different.
+# -----------------------------------------------------------------------------
+d-i partman-auto/disk string /dev/mmcblk0
+d-i partman-auto/method string regular
+d-i partman-auto/choose_recipe select custom
+d-i partman-auto/expert_recipe string \
+  custom ::                                   \
+    256 256 256 fat32                         \
+      $primary{ } $bootable{ }                \
+      method{ efi } format{ }                 \
+      mountpoint{ /boot/efi }                 \
+    .                                         \
+    1024 1024 1024 ext4                       \
+      $primary{ }                             \
+      method{ format } format{ }              \
+      use_filesystem{ } filesystem{ ext4 }    \
+      mountpoint{ /boot }                     \
+    .                                         \
+    4096 4096 4096 linux-swap                 \
+      $primary{ }                             \
+      method{ swap } format{ }                \
+    .                                         \
+    5000 20000 -1 ext4                        \
+      $primary{ }                             \
+      method{ format } format{ }              \
+      use_filesystem{ } filesystem{ ext4 }    \
+      mountpoint{ / }                         \
+    .
+
+d-i partman-partitioning/confirm_write_new_label boolean true
+d-i partman/choose_partition select finish
+d-i partman/confirm boolean true
+d-i partman/confirm_nooverwrite boolean true
+d-i partman-md/confirm boolean true
+d-i partman-lvm/confirm boolean true
+d-i partman-lvm/confirm_nooverwrite boolean true
+
+# -----------------------------------------------------------------------------
+# Base system
+# -----------------------------------------------------------------------------
+d-i base-installer/install-recommends boolean false
+d-i base-installer/kernel/image string linux-image-amd64
+
+# -----------------------------------------------------------------------------
+# APT
+# -----------------------------------------------------------------------------
+d-i apt-setup/use_mirror boolean true
+d-i apt-setup/non-free-firmware boolean true
+d-i apt-setup/non-free boolean true
+d-i apt-setup/contrib boolean true
+popularity-contest popularity-contest/participate boolean false
+
+# -----------------------------------------------------------------------------
+# Package selection — minimal base; Ansible finishes the rest
+# -----------------------------------------------------------------------------
+tasksel tasksel/first multiselect standard
+d-i pkgsel/include string \
+  sudo curl wget git ca-certificates gnupg2 \
+  lxqt-core sddm \
+  f2fs-tools zram-tools \
+  firmware-linux firmware-linux-nonfree \
+  ansible python3 python3-pip \
+  openssh-client
+
+d-i pkgsel/upgrade select full-upgrade
+d-i pkgsel/update-policy select unattended-upgrades
+
+# -----------------------------------------------------------------------------
+# Users
+# -----------------------------------------------------------------------------
+d-i passwd/root-login boolean false
+d-i passwd/make-user boolean true
+d-i passwd/user-fullname string dvorst
+d-i passwd/username string dvorst
+# Hash injected from Ansible Vault at render time — never commit preseed.cfg
+d-i passwd/user-password-crypted password {{ vault_dvorst_password_hash }}
+d-i passwd/user-default-groups string sudo audio video plugdev netdev bluetooth
+
+# -----------------------------------------------------------------------------
+# Bootloader
+# -----------------------------------------------------------------------------
+d-i grub-installer/only_debian boolean true
+d-i grub-installer/bootdev string /dev/mmcblk0
+d-i finish-install/reboot_in_progress note
+
+# -----------------------------------------------------------------------------
+# Late commands — runs inside chroot
+# Converts root partition to F2FS and applies low-write mount options
+# -----------------------------------------------------------------------------
+d-i preseed/late_command string \
+  in-target apt-get install -y f2fs-tools; \
+  \
+  ROOT_DEV=$(findmnt -n -o SOURCE /target); \
+  BOOT_DEV=$(findmnt -n -o SOURCE /target/boot); \
+  ROOT_UUID=$(blkid -s UUID -o value $ROOT_DEV); \
+  \
+  echo "Unmounting and reformatting root to F2FS..."; \
+  umount /target/boot/efi || true; \
+  umount /target/boot || true; \
+  umount /target/dev/pts || true; \
+  umount /target/dev || true; \
+  umount /target/proc || true; \
+  umount /target/sys || true; \
+  umount /target; \
+  \
+  mkfs.f2fs -f -l debroot $ROOT_DEV; \
+  \
+  mount -t f2fs -o rw,noatime,nodiscard,background_gc=off,disable_roll_forward,lazytime $ROOT_DEV /target; \
+  mount $BOOT_DEV /target/boot; \
+  \
+  sed -i "s|UUID=$ROOT_UUID.*|UUID=$(blkid -s UUID -o value $ROOT_DEV)\t/\tf2fs\tnoatime,nodiscard,background_gc=off,lazytime\t0 0|" /target/etc/fstab; \
+  \
+  mkdir -p /target/home/dvorst/projects; \
+  chown 1000:1000 /target/home/dvorst/projects; \
+  \
+  cp /cdrom/preseed/ansible/ /target/home/dvorst/ -r || true; \
+  \
+  in-target systemctl enable zramswap; \
+  in-target systemctl enable sddm;

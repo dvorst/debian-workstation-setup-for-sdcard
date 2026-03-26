@@ -1,0 +1,71 @@
+---
+- name: Remove legacy sources.list
+  file:
+    path: /etc/apt/sources.list
+    state: absent
+
+- name: Write Debian apt sources (DEB822)
+  copy:
+    dest: /etc/apt/sources.list.d/debian.sources
+    content: |
+      Types: deb
+      URIs: https://deb.debian.org/debian
+      Suites: {{ debian_release }} {{ debian_release }}-updates
+      Components: main contrib non-free non-free-firmware
+      Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+      Types: deb
+      URIs: https://security.debian.org/debian-security
+      Suites: {{ debian_release }}-security
+      Components: main contrib non-free non-free-firmware
+      Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+- name: Add OpenTofu apt key
+  get_url:
+    url: https://get.opentofu.org/opentofu.gpg
+    dest: /etc/apt/keyrings/opentofu.gpg
+    mode: '0644'
+
+- name: Add OpenTofu apt source (DEB822)
+  copy:
+    dest: /etc/apt/sources.list.d/opentofu.sources
+    content: |
+      Types: deb deb-src
+      URIs: https://packages.opentofu.org/opentofu/tofu/any/
+      Suites: any
+      Components: main
+      Signed-By: /etc/apt/keyrings/opentofu.gpg
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+
+- name: Install core packages
+  apt:
+    name:
+      - git
+      - curl
+      - wget
+      - gnupg2
+      - ca-certificates
+      - build-essential
+      - make
+      - python3
+      - python3-pip
+      - pipx
+      - codium
+      - podman
+      - podman-compose
+      - fuse-overlayfs
+      - slirp4netns
+      - bash
+      - bash-completion
+      - unzip
+      - xz-utils
+      - jq
+      - htop
+      - ncdu
+      - rsync
+      - zram-tools
+      - tofu
+    state: present

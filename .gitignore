@@ -1,0 +1,12 @@
+# Rendered preseed — contains password hash, never commit
+preseed.cfg
+
+# Populated by 'make syntax-check' from tests/vars.yml — never commit real vault here
+group_vars/
+
+# Ansible Vault password file (if you use one instead of --ask-vault-pass)
+.vault_pass
+.vault_password
+
+# Ansible retry files
+*.retry

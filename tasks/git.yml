@@ -1,0 +1,11 @@
+---
+- name: Set git global defaults
+  become_user: "{{ username }}"
+  git_config:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    scope: global
+  loop:
+    - { key: init.defaultBranch, value: main    }
+    - { key: pull.rebase,        value: "false" }
+    - { key: core.autocrlf,      value: input   }

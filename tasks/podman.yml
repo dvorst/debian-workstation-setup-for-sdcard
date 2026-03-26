@@ -1,0 +1,24 @@
+---
+- name: Set subuid for dvorst
+  lineinfile:
+    path: /etc/subuid
+    line: "{{ username }}:100000:65536"
+    create: yes
+
+- name: Set subgid for dvorst
+  lineinfile:
+    path: /etc/subgid
+    line: "{{ username }}:100000:65536"
+    create: yes
+
+- name: Configure podman fuse-overlayfs (recommended for F2FS)
+  become_user: "{{ username }}"
+  copy:
+    dest: "{{ user_home }}/.config/containers/storage.conf"
+    content: |
+      [storage]
+      driver = "overlay"
+
+      [storage.options.overlay]
+      mount_program = "/usr/bin/fuse-overlayfs"
+    mode: '0600'

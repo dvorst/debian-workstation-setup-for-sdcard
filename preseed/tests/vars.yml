@@ -1,0 +1,5 @@
+---
+# CI test variables — NOT for production use.
+# Provides dummy values so playbooks can be syntax-checked and templates
+# rendered without requiring a real Ansible Vault password.
+vault_dvorst_password_hash: "$6$rounds=656000$testsalt000000000$FAKEHASHFORTESTINGONLYDONOTUSE"

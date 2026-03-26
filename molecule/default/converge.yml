@@ -1,0 +1,7 @@
+---
+# Import the production playbook as-is.
+# molecule_container=true activates guards on tasks that cannot run in a
+# container (sysctl reload, systemd units).
+- import_playbook: ../../site.yml
+  vars:
+    molecule_container: true

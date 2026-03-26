@@ -1,0 +1,120 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    # User and home directory
+    - name: Check user dvorst exists
+      ansible.builtin.command: id dvorst
+      register: user_check
+      changed_when: false
+
+    - name: Assert user dvorst exists
+      ansible.builtin.assert:
+        that: user_check.rc == 0
+
+    - name: Check ~/projects directory
+      ansible.builtin.stat:
+        path: /home/dvorst/projects
+      register: projects_dir
+
+    - name: Assert ~/projects is a directory
+      ansible.builtin.assert:
+        that: projects_dir.stat.isdir
+
+    # Shell environment
+    - name: Check .bashrc deployed
+      ansible.builtin.stat:
+        path: /home/dvorst/.bashrc
+      register: bashrc
+
+    - name: Assert .bashrc exists
+      ansible.builtin.assert:
+        that: bashrc.stat.exists
+
+    - name: Check .bashrc contains starship init
+      ansible.builtin.command: grep -q "starship init bash" /home/dvorst/.bashrc
+      register: starship_in_bashrc
+      changed_when: false
+
+    - name: Assert starship is in .bashrc
+      ansible.builtin.assert:
+        that: starship_in_bashrc.rc == 0
+
+    # Low-write config files
+    - name: Check zramswap config
+      ansible.builtin.stat:
+        path: /etc/default/zramswap
+      register: zramswap_conf
+
+    - name: Assert zramswap config deployed
+      ansible.builtin.assert:
+        that: zramswap_conf.stat.exists
+
+    - name: Check sysctl config file created
+      ansible.builtin.stat:
+        path: /etc/sysctl.d/99-lowwrite.conf
+      register: sysctl_conf
+
+    - name: Assert sysctl config file exists
+      ansible.builtin.assert:
+        that: sysctl_conf.stat.exists
+
+    - name: Check journald volatile config
+      ansible.builtin.command: grep -q "Storage=volatile" /etc/systemd/journald.conf
+      register: journald_volatile
+      changed_when: false
+
+    - name: Assert journald volatile storage configured
+      ansible.builtin.assert:
+        that: journald_volatile.rc == 0
+
+    - name: Check apt cache disabled
+      ansible.builtin.stat:
+        path: /etc/apt/apt.conf.d/99-no-cache
+      register: apt_cache_conf
+
+    - name: Assert apt cache config deployed
+      ansible.builtin.assert:
+        that: apt_cache_conf.stat.exists
+
+    # APT sources
+    - name: Check Debian DEB822 sources written
+      ansible.builtin.stat:
+        path: /etc/apt/sources.list.d/debian.sources
+      register: debian_sources
+
+    - name: Assert Debian sources deployed
+      ansible.builtin.assert:
+        that: debian_sources.stat.exists
+
+    # Podman rootless
+    - name: Check subuid entry for dvorst
+      ansible.builtin.command: grep -q "dvorst:100000:65536" /etc/subuid
+      register: subuid_check
+      changed_when: false
+
+    - name: Assert subuid configured
+      ansible.builtin.assert:
+        that: subuid_check.rc == 0
+
+    - name: Check podman storage config
+      ansible.builtin.stat:
+        path: /home/dvorst/.config/containers/storage.conf
+      register: podman_storage
+
+    - name: Assert podman storage config deployed
+      ansible.builtin.assert:
+        that: podman_storage.stat.exists
+
+    # Git config
+    - name: Check git defaultBranch set to main
+      ansible.builtin.command: >
+        sudo -u dvorst git config --global init.defaultBranch
+      register: git_branch
+      changed_when: false
+
+    - name: Assert git defaultBranch is main
+      ansible.builtin.assert:
+        that: git_branch.stdout == "main"

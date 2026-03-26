@@ -1,0 +1,14 @@
+---
+- name: Enable SDDM display manager
+  systemd:
+    name: sddm
+    enabled: yes
+    state: started
+  when: not (molecule_container | default(false))
+
+- name: Set default session to LXQt in SDDM
+  ini_file:
+    path: /etc/sddm.conf
+    section: Autologin
+    option: Session
+    value: lxqt

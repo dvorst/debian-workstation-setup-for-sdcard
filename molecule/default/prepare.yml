@@ -1,0 +1,29 @@
+---
+# Install the bare minimum inside the container so Ansible can connect and
+# become another user.
+- name: Prepare container
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Install Python and sudo
+      ansible.builtin.raw: apt-get update -qq && apt-get install -y -qq python3 sudo
+
+# Create a dummy vault vars file on the controller so that site.yml's
+# vars_files directive resolves without requiring a real vault password.
+# group_vars/all/ is in .gitignore, so this file is never committed.
+- name: Create dummy vault vars on controller
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Ensure group_vars/all directory exists
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../../group_vars/all"
+        state: directory
+        mode: "0755"
+
+    - name: Write dummy vault vars for testing
+      ansible.builtin.copy:
+        dest: "{{ playbook_dir }}/../../group_vars/all/vault.yml"
+        content: "{{ lookup('file', playbook_dir + '/../../preseed/tests/vars.yml') }}\n"
+        mode: "0644"
