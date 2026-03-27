@@ -1,38 +1,36 @@
 {
-  "name": "debian-workstation-setup",
-  "build": {
-    "dockerfile": "Dockerfile",
-    "context": ".."
-  },
-  // Bind the Podman socket into the container as a Docker-compatible socket.
-  // molecule-docker uses the Docker Python SDK, which works transparently with
-  // Podman's Docker-compatible API via DOCKER_HOST.
-  //
-  // Adjust the source path if your Podman socket is elsewhere:
-  //   Rootless Podman (Linux / Podman Machine):  /run/user/<UID>/podman/podman.sock
-  //   Rootful Podman (Linux):                    /run/podman/podman.sock
-  //
-  // On Windows with Podman Desktop the socket is forwarded into the Podman
-  // Machine VM; UID 1000 is the default VM user.
-  "mounts": [
-    {
-      "source": "/run/user/1000/podman/podman.sock",
-      "target": "/var/run/docker.sock",
-      "type": "bind"
-    }
-  ],
-  "remoteEnv": {
-    "DOCKER_HOST": "unix:///var/run/docker.sock"
-  },
-  // Disable SELinux label relabelling — Podman uses it by default and it
-  // prevents the socket bind-mount from being accessible inside the container.
-  "runArgs": ["--security-opt=label=disable"],
-  "customizations": {
-    "vscode": {
-      "extensions": [
-        "redhat.ansible",
-        "redhat.vscode-yaml"
-      ]
-    }
-  }
+    "build": {
+        "dockerfile": "./Dockerfile",
+        "context": ".",
+        "args": {
+            "USERNAME": "${localEnv:USER}${localEnv:USERNAME}",
+            "ROOT_PASSWORD": "admin", // only used in the devcontainer, so hardcoding it is fine.
+            "TERMINAL_EDITOR": "neovim",
+            // add scripts dir to path
+            "SCRIPTS_DIR": "/workspaces/${localWorkspaceFolderBasename}/scripts"
+        }
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "shakram02.bash-beautify",
+                "waderyan.gitblame",
+                "mhutchie.git-graph",
+                "eamodio.gitlens",
+                "charliermarsh.ruff",
+                "tamasfe.even-better-toml",
+                "redhat.vscode-yaml",
+                "timonwong.shellcheck",
+                "mkhl.shfmt",
+                "iliazeus.vscode-ansi",
+                "redhat.ansible"
+
+            ]
+            // "settings": {}  Please modify settings in .vscode/settings.json
+        }
+    },
+    // Run the post create script, see '.devcontainer/dat/post-create-script.sh'
+    "postCreateCommand": ". /post-create-script.sh",
+    // run the post start script, see '.devcontainer/dat/post-start-script.sh'
+    "postStartCommand": ". /post-start-script.sh"
 }
